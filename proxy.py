@@ -1,14 +1,18 @@
-import socket
-import select
-import sys
-import os
-import time
+import sys, os, time, socket, select
+def main ():
+    if len(sys.argv) != 2:
+        print("Usage: python proxy.py <time_to_expiration>")
+        sys.exit(1)
+    try:
+        expiration = int(sys.argv[1])
+    except ValueError:
+        print("Error: time_to_expiration must be a positive integer")
+        sys.exit(1)
+    
+    if expiration < 0:
+        print("Error: time_to_expiration must be a positive integer")
+        sys.exit(1)
 
-
-# def convertURLToFileName(url):
-
-
-def __main__ ():
     # Create socket list to monitor sockets
     socket_set = set()
 
@@ -52,13 +56,23 @@ def __main__ ():
 
                         # check proxy first
                         filename = os.path.join(os.getcwd(), hostname + new_path.replace('/', '_'))
-                        if os.path.exists(filename):
-                            with open(filename, 'rb') as f:
-                                content = f.read()
-                                browser.sendall(content)
-                                browser.close()
 
-                        else: # filename is not in cache
+                        inCache = None
+                        
+                        if os.path.exists(filename):
+                            age = time.time() - os.path.getmtime(filename)
+                            if age <= expiration:
+                                inCache = True
+                                with open(filename, 'rb') as f:
+                                    content = f.read()
+                                    browser.sendall(content)
+                                    browser.close()
+                            else:
+                                # delete expired file
+                                os.remove(filename)
+                                inCache = False
+
+                        if not inCache: # filename is not in cache
                             # modify url path
                             lines[0] = f"GET {new_path} {http_version}"
 
@@ -94,8 +108,7 @@ def __main__ ():
                             # build up destination server response
                             dest_response_data[dest_socket] = b""
                 
-                    else:
-
+                    else: # destination server socket is readable
                         dest_socket = sock
                         browser = dest_browser_map[dest_socket]
                         response = dest_socket.recv(4096)
@@ -109,6 +122,7 @@ def __main__ ():
                             content = dest_response_data[dest_socket]
                             with open(filename, "wb") as f:
                                 f.write(content)
+
                             browser.close()
                             dest_socket.close()
                             socket_set.remove(dest_socket)
@@ -121,7 +135,7 @@ def __main__ ():
                     print(f"Error: {e}")      
                 
 if __name__ == "__main__":
-    __main__()
+    main()
         
 
 
